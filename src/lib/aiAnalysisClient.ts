@@ -1,6 +1,24 @@
 import type { Stock } from '../data/mockMarket';
 import type { FundamentalAnalysis, NewsAnalysis, StrategyPlan } from './indicators';
 
+export type AiProvider = 'gemini' | 'openai' | 'anthropic';
+export type AiConnection = { provider: AiProvider; model: string; apiKey: string };
+export const aiProviders = [
+  { id: 'gemini' as const, label: 'Gemini', model: 'gemini-flash-latest', url: 'https://aistudio.google.com/api-keys' },
+  { id: 'openai' as const, label: 'GPT', model: 'gpt-4.1-mini', url: 'https://platform.openai.com/api-keys' },
+  { id: 'anthropic' as const, label: 'Claude', model: 'claude-sonnet-4-5', url: 'https://platform.claude.com/settings/keys' },
+];
+
+export async function testAiConnection(connection: AiConnection, signal?: AbortSignal) {
+  const response = await fetch(`${aiApiUrl}/api/ai-connection/test`, {
+    method: 'POST', signal,
+    headers: { 'Content-Type': 'application/json', 'x-ai-api-key': connection.apiKey },
+    body: JSON.stringify({ connection: { provider: connection.provider, model: connection.model } }),
+  });
+  const data = await response.json();
+  if (!response.ok) throw new Error(data.message ?? '연결 테스트 실패');
+}
+
 export type AiAnalysisResult = {
   headline: string;
   summary: string;
@@ -14,7 +32,7 @@ export type AiAnalysisResult = {
 };
 
 export type AiAnalysisResponse = {
-  mode: 'gemini' | 'fallback' | 'local';
+  mode: AiProvider | 'fallback' | 'local';
   model: string | null;
   analysis: AiAnalysisResult;
 };
@@ -30,8 +48,9 @@ export async function requestAiAnalysis(input: {
   volumeState: string;
   news: NewsAnalysis;
   fundamentals: FundamentalAnalysis;
-}): Promise<AiAnalysisResponse> {
+}, connection: AiConnection, signal?: AbortSignal): Promise<AiAnalysisResponse> {
   const body = {
+    connection: { provider: connection.provider, model: connection.model },
     stock: {
       symbol: input.stock.symbol,
       name: input.stock.name,
@@ -74,17 +93,16 @@ export async function requestAiAnalysis(input: {
 
   const response = await fetch(`${aiApiUrl}/api/ai-analysis`, {
     method: 'POST',
+    signal,
     headers: {
       'Content-Type': 'application/json',
+      'x-ai-api-key': connection.apiKey,
     },
     body: JSON.stringify(body),
   });
 
   const data = await response.json();
   if (!response.ok) {
-    if (data?.fallback) {
-      return data.fallback as AiAnalysisResponse;
-    }
     throw new Error(data?.message ?? 'AI analysis request failed');
   }
 

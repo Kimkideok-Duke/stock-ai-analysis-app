@@ -14,7 +14,9 @@ export function AiAnalysisPanel({ result, loading }: AiAnalysisPanelProps) {
         <View>
           <Text style={styles.title}>AI 종합 분석</Text>
           <Text style={styles.caption}>
-            {loading ? '분석 갱신 중' : result.mode === 'gemini' ? `Gemini · ${result.model}` : 'Fallback 분석'}
+            {loading ? '분석 갱신 중' : result.model
+              ? `${result.mode === 'openai' ? 'GPT' : result.mode === 'anthropic' ? 'Claude' : 'Gemini'} · ${result.model}`
+              : '기본 지표 요약 · AI 미사용'}
           </Text>
         </View>
         <View style={styles.badge}>

@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   SafeAreaView,
   ScrollView,
@@ -11,9 +11,10 @@ import {
 } from 'react-native';
 import { CandlestickChart } from './src/components/CandlestickChart';
 import { AiAnalysisPanel } from './src/components/AiAnalysisPanel';
+import { AiConnections } from './src/components/AiConnections';
 import { MetricCard } from './src/components/MetricCard';
 import { mockStocks, searchStocks, type NewsItem, type StockSymbol } from './src/data/mockMarket';
-import { buildLocalAiFallback, requestAiAnalysis, type AiAnalysisResponse } from './src/lib/aiAnalysisClient';
+import { buildLocalAiFallback, requestAiAnalysis, type AiAnalysisResponse, type AiConnection } from './src/lib/aiAnalysisClient';
 import {
   analyzeFinancials,
   analyzeNews,
@@ -68,48 +69,34 @@ export default function App() {
   const changePercent = previous.close === 0 ? 0 : change / previous.close;
   const money = (value: number) => formatCurrency(value, selectedStock.currency);
 
+  const analysisRequest = useRef<AbortController | null>(null);
+  const [connection, setConnection] = useState<AiConnection | null>(null);
+  const [aiError, setAiError] = useState('');
+
   useEffect(() => {
-    let cancelled = false;
-    const localFallback = buildLocalAiFallback({
-      stock: selectedStock,
-      strategy: analysis.strategy,
-      news: newsAnalysis,
-      fundamentals: financialAnalysis,
-    });
+    analysisRequest.current?.abort();
+    setAiLoading(false); setAiError('');
+    setAiAnalysis(buildLocalAiFallback({ stock: selectedStock, strategy: analysis.strategy,
+      news: newsAnalysis, fundamentals: financialAnalysis }));
+    return () => analysisRequest.current?.abort();
+  }, [analysis, financialAnalysis, newsAnalysis, selectedStock, connection]);
 
-    setAiAnalysis(localFallback);
-    setAiLoading(true);
-
-    requestAiAnalysis({
-      stock: selectedStock,
-      strategy: analysis.strategy,
-      rsi: analysis.rsi,
-      macdHistogram: analysis.macd.histogram,
-      maState: analysis.maState,
-      volumeState: analysis.volumeState,
-      news: newsAnalysis,
-      fundamentals: financialAnalysis,
-    })
-      .then((result) => {
-        if (!cancelled) {
-          setAiAnalysis(result);
-        }
-      })
-      .catch(() => {
-        if (!cancelled) {
-          setAiAnalysis(localFallback);
-        }
-      })
-      .finally(() => {
-        if (!cancelled) {
-          setAiLoading(false);
-        }
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [analysis, financialAnalysis, newsAnalysis, selectedStock]);
+  async function runAiAnalysis() {
+    if (!connection || aiLoading) return;
+    const controller = new AbortController();
+    analysisRequest.current?.abort(); analysisRequest.current = controller;
+    setAiLoading(true); setAiError('');
+    try {
+      const result = await requestAiAnalysis({ stock: selectedStock, strategy: analysis.strategy,
+        rsi: analysis.rsi, macdHistogram: analysis.macd.histogram, maState: analysis.maState,
+        volumeState: analysis.volumeState, news: newsAnalysis, fundamentals: financialAnalysis,
+      }, connection, controller.signal);
+      if (!controller.signal.aborted) setAiAnalysis(result);
+    } catch (error) {
+      if (!controller.signal.aborted) setAiError(error instanceof Error && error.message !== 'Failed to fetch'
+        ? error.message : '분석 서버에 연결할 수 없습니다.');
+    } finally { if (!controller.signal.aborted) setAiLoading(false); }
+  }
 
   const toggleIndicator = (key: IndicatorKey) => {
     setVisibleIndicators((current) => ({
@@ -233,6 +220,8 @@ export default function App() {
           ))}
         </View>
 
+        <AiConnections onChange={setConnection} onAnalyze={runAiAnalysis} loading={aiLoading} />
+        {!!aiError && <Text accessibilityRole="alert" style={{ color: '#B42318', marginTop: 12 }}>{aiError}</Text>}
         {aiAnalysis && <AiAnalysisPanel result={aiAnalysis} loading={aiLoading} />}
 
         <View style={styles.section}>

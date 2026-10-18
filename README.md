@@ -25,23 +25,22 @@ React Native / Expo 기반 주식 분석 앱 MVP입니다.
 - 재무제표 기반 성장성, 수익성, 안정성, 밸류에이션 분석
 - Gemini AI 종합 분석 서버 구조
 
-## Gemini AI 분석 서버
+## 개인 AI API 연결
 
-Gemini API 키는 앱에 넣지 않고 Node 서버에서만 사용합니다.
+PC 테스트: http://localhost:8081
+
+Gemini, GPT, Claude 중 제공자를 선택하고 모델 ID와 본인 API 키를 입력합니다.
+연결 테스트 성공 후 "선택한 AI로 분석"을 누르면 해당 계정의 API를 사용합니다.
+채팅 구독 로그인은 구현하지 않았으며 API 사용량은 각 제공자 정책에 따라 과금됩니다.
 
 ```powershell
-.\.tools\node\npm.cmd run ai-server
+.\\.tools\\node\\npm.cmd run web
+.\\.tools\\node\\npm.cmd run ai-server
 ```
 
-`.env`에 `GEMINI_API_KEY`가 있으면 실제 Gemini API를 호출하고, 없으면 fallback 분석을 반환합니다.
-
-```env
-GEMINI_API_KEY=your-gemini-api-key-here
-GEMINI_MODEL=gemini-flash-latest
-AI_SERVER_PORT=8787
-```
-
-자세한 구조는 `docs/ai-analysis-architecture.md`를 참고하세요.
+키는 현재 앱 세션 메모리에만 유지하며 새로고침 또는 연결 해제 시 삭제됩니다.
+운영자의 서버 Gemini 키는 개인 분석에 사용하지 않습니다.
+자세한 구조는 `docs/personal-ai-connections.md`를 참고하세요.
 
 ## 검증
 

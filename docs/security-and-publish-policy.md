@@ -5,7 +5,8 @@ Created: 2026-07-14
 ## Sensitive Data
 
 - Never commit real API keys, tokens, secrets, local logs, or generated local runtime files.
-- Keep the Gemini API key only in the local `.env` file or a protected server environment.
+- Operator secrets stay in ignored local `.env` files or protected server environments.
+- Personal provider keys stay in app session memory only, and pass to the server per request. Never persist them to browser storage or server files.
 - Commit `.env.example` only with placeholder values.
 - Do not include real secret values in Notion, GitHub issues, pull requests, commit messages, screenshots, or logs.
 
