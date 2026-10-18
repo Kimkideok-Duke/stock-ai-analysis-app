@@ -1,13 +1,15 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Linking, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { aiProviders, testAiConnection, type AiConnection, type AiProvider } from '../lib/aiAnalysisClient';
+import { ChatSubscription } from './ChatSubscription';
 
 type Props = { onChange: (connection: AiConnection | null) => void; onAnalyze: () => void; loading: boolean };
 
 export function AiConnections({ onChange, onAnalyze, loading }: Props) {
-  const [provider, setProvider] = useState<AiProvider>('gemini');
+  const [provider, setProvider] = useState<AiProvider>('openai');
+  const [mode, setMode] = useState<'api' | 'subscription'>('subscription');
   const [connections, setConnections] = useState<Partial<Record<AiProvider, AiConnection>>>({});
-  const [model, setModel] = useState('gemini-flash-latest');
+  const [model, setModel] = useState('gpt-4.1-mini');
   const [key, setKey] = useState('');
   const [testing, setTesting] = useState(false);
   const [error, setError] = useState('');
@@ -16,9 +18,10 @@ export function AiConnections({ onChange, onAnalyze, loading }: Props) {
   useEffect(() => () => request.current?.abort(), []);
 
   function select(next: AiProvider) {
+    if (next === provider) return;
     request.current?.abort(); setTesting(false); setError(''); setKey('');
     setProvider(next); setModel(connections[next]?.model ?? aiProviders.find(p => p.id === next)!.model);
-    onChange(connections[next] ?? null);
+    onChange(mode === 'api' ? connections[next] ?? null : null);
   }
 
   async function connect() {
@@ -45,12 +48,20 @@ export function AiConnections({ onChange, onAnalyze, loading }: Props) {
   return <View style={styles.section}>
     <Text style={styles.title}>내 AI 연결</Text>
     <View style={styles.tabs} accessibilityRole="tablist">
+      {(['subscription', 'api'] as const).map(value => <Pressable key={value} accessibilityRole="tab"
+        accessibilityState={{ selected: mode === value }} style={[styles.tab, mode === value && styles.selected]}
+        onPress={() => { if (value === mode) return; request.current?.abort(); setTesting(false); setKey(''); setError(''); setMode(value); onChange(value === 'api' ? active ?? null : null); }}>
+        <Text style={styles.label}>{value === 'subscription' ? '채팅 구독 계정' : '개인 API 키'}</Text>
+      </Pressable>)}
+    </View>
+    <View style={styles.tabs} accessibilityRole="tablist">
       {aiProviders.map(item => <Pressable key={item.id} accessibilityRole="tab"
         accessibilityState={{ selected: provider === item.id }} onPress={() => select(item.id)}
         style={[styles.tab, provider === item.id && styles.selected]}>
-        <Text style={styles.label}>{item.label}{connections[item.id] ? ' · 연결됨' : ''}</Text>
+        <Text style={styles.label}>{item.label}{mode === 'api' && connections[item.id] ? ' · 연결됨' : ''}</Text>
       </Pressable>)}
     </View>
+    {mode === 'subscription' ? <ChatSubscription key={provider} provider={provider} onChange={onChange} onAnalyze={onAnalyze} loading={loading} /> : <>
     <Text style={styles.note}>개인 API 연결 · 채팅 구독과 별도 과금 · 키는 현재 세션에만 유지</Text>
     {active ? <View style={styles.row}>
       <Text style={styles.status}>연결됨 · {active.model}</Text>
@@ -80,6 +91,7 @@ export function AiConnections({ onChange, onAnalyze, loading }: Props) {
       style={[styles.button, (!active || loading) && styles.disabled]}>
       <Text style={styles.buttonText}>{loading ? '분석 중…' : '선택한 AI로 분석'}</Text>
     </Pressable>
+    </>}
   </View>;
 }
 

@@ -4,6 +4,7 @@ const cors = require('cors');
 const express = require('express');
 const { z } = require('zod');
 const { connectionSchema, generate, analyze, publicError } = require('./aiProviders');
+const { installSubscription } = require('./chatgptSubscription');
 
 const app = express();
 const port = Number(process.env.AI_SERVER_PORT ?? 8787);
@@ -11,6 +12,7 @@ const port = Number(process.env.AI_SERVER_PORT ?? 8787);
 app.use(cors({ origin: /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/ }));
 app.use((_req, res, next) => { res.set('Cache-Control', 'no-store'); next(); });
 app.use(express.json({ limit: '1mb' }));
+const subscription = installSubscription(app, port);
 
 const analysisRequestSchema = z.object({
   stock: z.object({
@@ -70,7 +72,7 @@ app.get('/health', (_req, res) => {
 function readConnection(req) {
   const connection = connectionSchema.safeParse(req.body.connection);
   const apiKey = req.get('x-ai-api-key');
-  if (!connection.success || !apiKey || apiKey.length > 1024 || /[\\r\\n]/.test(apiKey)) return null;
+  if (!connection.success || !apiKey || apiKey.length > 1024 || /[\r\n]/.test(apiKey)) return null;
   return { connection: connection.data, apiKey };
 }
 
@@ -87,6 +89,13 @@ app.post('/api/ai-analysis', async (req, res) => {
   const parsed = analysisRequestSchema.safeParse(req.body);
   const input = readConnection(req);
   if (!parsed.success) return res.status(400).json({ message: '분석 데이터를 확인해주세요.' });
+  if (req.body.connection?.authMode === 'subscription') {
+    if (req.body.connection?.provider !== 'openai') return res.status(400).json({ message: '지원하지 않는 구독 연결입니다.' });
+    try {
+      const analysis = await subscription.analyze(req, parsed.data);
+      return res.json({ mode: 'openai', authMode: 'subscription', model: req.body.connection.model, analysis });
+    } catch { return res.status(502).json({ message: 'ChatGPT 구독 분석에 실패했습니다. 다시 로그인하거나 사용 한도를 확인해주세요.' }); }
+  }
   if (!input) return res.status(401).json({ message: '개인 AI API 연결이 필요합니다.' });
   try {
     const analysis = await analyze(parsed.data, input.connection, input.apiKey);

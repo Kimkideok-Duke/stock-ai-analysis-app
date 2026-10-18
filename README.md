@@ -31,16 +31,19 @@ PC 테스트: http://localhost:8081
 
 Gemini, GPT, Claude 중 제공자를 선택하고 모델 ID와 본인 API 키를 입력합니다.
 연결 테스트 성공 후 "선택한 AI로 분석"을 누르면 해당 계정의 API를 사용합니다.
-채팅 구독 로그인은 구현하지 않았으며 API 사용량은 각 제공자 정책에 따라 과금됩니다.
+API 사용량은 각 제공자 정책에 따라 과금됩니다.
+채팅 구독 계정 탭에서는 PC 로컬용 ChatGPT 로그인과 구독 분석을 선택할 수 있습니다.
+계정의 사용 권한과 모델을 확인한 뒤 활성화되며, 실제 로그인 검증은 사용자 동의가 필요합니다.
 
 ```powershell
-.\\.tools\\node\\npm.cmd run web
-.\\.tools\\node\\npm.cmd run ai-server
+.\.tools\node\npm.cmd run web
+.\.tools\node\npm.cmd run ai-server
 ```
 
 키는 현재 앱 세션 메모리에만 유지하며 새로고침 또는 연결 해제 시 삭제됩니다.
 운영자의 서버 Gemini 키는 개인 분석에 사용하지 않습니다.
 자세한 구조는 `docs/personal-ai-connections.md`를 참고하세요.
+ChatGPT 구독 연결 구조는 `docs/chat-subscription.md`를 참고하세요.
 
 ## 검증
 

@@ -1,7 +1,7 @@
 # Personal AI Connections
 
 - Providers: Gemini (Google), GPT (OpenAI Responses), Claude (Anthropic Messages).
-- This screen connects personal API credentials, not consumer chat subscription login.
+- The Personal API tab connects API credentials. A separate Chat subscription tab supports local ChatGPT sign-in; see docs/chat-subscription.md.
 - Model ID is editable because access depends on each user's API account.
 - Connection tests make a small billable generation request. Analysis runs only on explicit action.
 - Keys are held in React session memory only, masked in inputs, and cleared on disconnect or reload.

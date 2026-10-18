@@ -2,7 +2,17 @@ import type { Stock } from '../data/mockMarket';
 import type { FundamentalAnalysis, NewsAnalysis, StrategyPlan } from './indicators';
 
 export type AiProvider = 'gemini' | 'openai' | 'anthropic';
-export type AiConnection = { provider: AiProvider; model: string; apiKey: string };
+export type AiConnection = { provider: AiProvider; model: string; apiKey: string; authMode?: 'subscription'; sessionToken?: string };
+
+export async function subscriptionRequest(path: string, credential?: string, body: object = {}, signal?: AbortSignal) {
+  const response = await fetch(`${aiApiUrl}/api/subscription/${path}`, { method: path === 'capabilities' ? 'GET' : 'POST', signal,
+    headers: { 'Content-Type': 'application/json', ...(credential ? { Authorization: `Bearer ${credential}` } : {}) },
+    ...(path === 'capabilities' ? {} : { body: JSON.stringify(body) }),
+  });
+  const data = await response.json();
+  if (!response.ok) throw new Error(data.message ?? '구독 계정 연결 요청에 실패했습니다.');
+  return data;
+}
 export const aiProviders = [
   { id: 'gemini' as const, label: 'Gemini', model: 'gemini-flash-latest', url: 'https://aistudio.google.com/api-keys' },
   { id: 'openai' as const, label: 'GPT', model: 'gpt-4.1-mini', url: 'https://platform.openai.com/api-keys' },
@@ -33,6 +43,7 @@ export type AiAnalysisResult = {
 
 export type AiAnalysisResponse = {
   mode: AiProvider | 'fallback' | 'local';
+  authMode?: 'subscription';
   model: string | null;
   analysis: AiAnalysisResult;
 };
@@ -50,7 +61,7 @@ export async function requestAiAnalysis(input: {
   fundamentals: FundamentalAnalysis;
 }, connection: AiConnection, signal?: AbortSignal): Promise<AiAnalysisResponse> {
   const body = {
-    connection: { provider: connection.provider, model: connection.model },
+    connection: { provider: connection.provider, model: connection.model, authMode: connection.authMode },
     stock: {
       symbol: input.stock.symbol,
       name: input.stock.name,
@@ -96,7 +107,9 @@ export async function requestAiAnalysis(input: {
     signal,
     headers: {
       'Content-Type': 'application/json',
-      'x-ai-api-key': connection.apiKey,
+      ...(connection.authMode === 'subscription'
+        ? { Authorization: `Bearer ${connection.sessionToken}` }
+        : { 'x-ai-api-key': connection.apiKey }),
     },
     body: JSON.stringify(body),
   });
