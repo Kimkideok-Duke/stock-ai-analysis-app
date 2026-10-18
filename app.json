@@ -1,0 +1,25 @@
+{
+  "expo": {
+    "name": "Stock Chart Lab",
+    "slug": "stock-chart-lab",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.example.stockchartlab",
+      "infoPlist": {
+        "NSPhotoLibraryUsageDescription": "차트 이미지를 선택해 분석 시나리오를 만들기 위해 사진 접근 권한이 필요합니다."
+      }
+    },
+    "android": {
+      "package": "com.example.stockchartlab"
+    },
+    "web": {
+      "bundler": "metro"
+    }
+  }
+}

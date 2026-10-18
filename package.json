@@ -1,0 +1,34 @@
+{
+  "name": "stock-chart-lab",
+  "version": "0.1.0",
+  "private": true,
+  "main": "index.ts",
+  "scripts": {
+    "start": ".tools\\node\\node.exe node_modules\\expo\\bin\\cli start",
+    "ios": ".tools\\node\\node.exe node_modules\\expo\\bin\\cli start --ios",
+    "android": ".tools\\node\\node.exe node_modules\\expo\\bin\\cli start --android",
+    "web": ".tools\\node\\node.exe node_modules\\expo\\bin\\cli start --web",
+    "ai-server": ".tools\\node\\node.exe server\\aiAnalysisServer.js",
+    "typecheck": ".tools\\node\\node.exe node_modules\\typescript\\bin\\tsc --noEmit"
+  },
+  "dependencies": {
+    "@expo/metro-runtime": "~6.1.2",
+    "cors": "^2.8.6",
+    "dotenv": "^17.4.2",
+    "expo": "~54.0.35",
+    "expo-image-picker": "~17.0.11",
+    "express": "^5.2.1",
+    "react": "19.1.0",
+    "react-dom": "19.1.0",
+    "react-native": "0.81.5",
+    "react-native-svg": "15.12.1",
+    "react-native-web": "^0.21.0",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@expo/ngrok": "^4.1.0",
+    "@types/react": "~19.1.10",
+    "qrcode": "^1.5.4",
+    "typescript": "~5.9.2"
+  }
+}
