@@ -3,9 +3,9 @@ import { Linking, Pressable, StyleSheet, Text, TextInput, View } from 'react-nat
 import { aiProviders, testAiConnection, type AiConnection, type AiProvider } from '../lib/aiAnalysisClient';
 import { ChatSubscription } from './ChatSubscription';
 
-type Props = { onChange: (connection: AiConnection | null) => void; onAnalyze: () => void; loading: boolean };
+type Props = { onChange: (connection: AiConnection | null) => void; onAnalyze: () => void; loading: boolean; analysisDisabled?: boolean };
 
-export function AiConnections({ onChange, onAnalyze, loading }: Props) {
+export function AiConnections({ onChange, onAnalyze, loading, analysisDisabled = false }: Props) {
   const [provider, setProvider] = useState<AiProvider>('openai');
   const [mode, setMode] = useState<'api' | 'subscription'>('subscription');
   const [connections, setConnections] = useState<Partial<Record<AiProvider, AiConnection>>>({});
@@ -61,7 +61,7 @@ export function AiConnections({ onChange, onAnalyze, loading }: Props) {
         <Text style={styles.label}>{item.label}{mode === 'api' && connections[item.id] ? ' · 연결됨' : ''}</Text>
       </Pressable>)}
     </View>
-    {mode === 'subscription' ? <ChatSubscription key={provider} provider={provider} onChange={onChange} onAnalyze={onAnalyze} loading={loading} /> : <>
+    {mode === 'subscription' ? <ChatSubscription key={provider} provider={provider} onChange={onChange} onAnalyze={onAnalyze} loading={loading} analysisDisabled={analysisDisabled} /> : <>
     <Text style={styles.note}>개인 API 연결 · 채팅 구독과 별도 과금 · 키는 현재 세션에만 유지</Text>
     {active ? <View style={styles.row}>
       <Text style={styles.status}>연결됨 · {active.model}</Text>
@@ -87,8 +87,8 @@ export function AiConnections({ onChange, onAnalyze, loading }: Props) {
       <Text style={styles.note}>연결 테스트 시 소량의 API 사용량이 발생합니다.</Text>
     </>}
     {!!error && <Text accessibilityRole="alert" style={styles.error}>{error}</Text>}
-    <Pressable accessibilityRole="button" disabled={!active || loading} onPress={onAnalyze}
-      style={[styles.button, (!active || loading) && styles.disabled]}>
+    <Pressable accessibilityRole="button" disabled={!active || loading || analysisDisabled} onPress={onAnalyze}
+      style={[styles.button, (!active || loading || analysisDisabled) && styles.disabled]}>
       <Text style={styles.buttonText}>{loading ? '분석 중…' : '선택한 AI로 분석'}</Text>
     </Pressable>
     </>}

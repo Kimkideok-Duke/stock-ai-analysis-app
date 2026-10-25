@@ -2,10 +2,10 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Linking, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { subscriptionRequest, type AiConnection, type AiProvider } from '../lib/aiAnalysisClient';
 
-type Props = { provider: AiProvider; onChange: (value: AiConnection | null) => void; onAnalyze: () => void; loading: boolean };
+type Props = { provider: AiProvider; onChange: (value: AiConnection | null) => void; onAnalyze: () => void; loading: boolean; analysisDisabled?: boolean };
 type Model = { id: string; name: string };
 
-export function ChatSubscription({ provider, onChange, onAnalyze, loading }: Props) {
+export function ChatSubscription({ provider, onChange, onAnalyze, loading, analysisDisabled = false }: Props) {
   const [available, setAvailable] = useState<boolean | null>(null);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState('');
@@ -100,7 +100,7 @@ export function ChatSubscription({ provider, onChange, onAnalyze, loading }: Pro
         accessibilityState={{ checked: item.id === model }} onPress={() => useModel(item.id)}
         style={[styles.model, item.id === model && styles.selected]}><Text>{item.name}</Text></Pressable>)}</View>
       <Pressable accessibilityRole="button" onPress={disconnect}><Text style={styles.link}>연결 해제</Text></Pressable>
-      <Pressable accessibilityRole="button" disabled={loading} onPress={onAnalyze} style={styles.button}>
+      <Pressable accessibilityRole="button" disabled={loading || analysisDisabled} onPress={onAnalyze} style={[styles.button, (loading || analysisDisabled) && styles.disabled]}>
         <Text style={styles.buttonText}>{loading ? '분석 중…' : 'ChatGPT 구독으로 분석'}</Text>
       </Pressable>
     </> : <>

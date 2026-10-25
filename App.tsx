@@ -264,7 +264,8 @@ export default function App() {
           ))}
         </View>
 
-        <AiConnections onChange={setConnection} onAnalyze={runAiAnalysis} loading={aiLoading} />
+        </>}
+        <AiConnections onChange={setConnection} onAnalyze={runAiAnalysis} loading={aiLoading} analysisDisabled={!market.data || !!market.error} />
         {aiLoading && <Pressable accessibilityRole="button" onPress={() => { analysisRequest.current?.abort(); setAiLoading(false); setAiError('분석을 취소했습니다.'); }} style={{ padding: 12 }}><Text style={{ color: '#1261A0' }}>분석 취소</Text></Pressable>}
         {!!aiError && <Text accessibilityRole="alert" style={{ color: '#B42318', marginTop: 12 }}>{aiError}</Text>}
         {aiAnalysis?.mode !== 'local' && aiAnalysis && <>
@@ -272,6 +273,7 @@ export default function App() {
           <AiAnalysisPanel result={aiAnalysis} loading={aiLoading} />
         </>}
 
+        {market.data && <>
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>분할매수·매도 시나리오</Text>
           <View style={styles.strategySummary}>
