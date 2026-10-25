@@ -5,6 +5,7 @@ const express = require('express');
 const { z } = require('zod');
 const { connectionSchema, generate, analyze, publicError } = require('./aiProviders');
 const { installSubscription } = require('./chatgptSubscription');
+const { installMarket } = require('./marketData');
 
 const app = express();
 const port = Number(process.env.AI_SERVER_PORT ?? 8787);
@@ -17,8 +18,10 @@ app.use((req, res, next) => {
   next();
 });
 const subscription = installSubscription(app, port);
+installMarket(app);
 
 const analysisRequestSchema = z.object({
+  marketSource: z.object({ source: z.string(), asOf: z.string(), interval: z.string(), delay: z.string() }).optional(),
   stock: z.object({
     symbol: z.string(),
     name: z.string(),

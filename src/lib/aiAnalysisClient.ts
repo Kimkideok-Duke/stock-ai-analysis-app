@@ -47,6 +47,7 @@ export type AiAnalysisResponse = {
 const aiApiUrl = process.env.EXPO_PUBLIC_AI_API_URL ?? 'http://localhost:8787';
 
 export async function requestAiAnalysis(input: {
+  marketSource?: { source: string; asOf: string; interval: string; delay: string };
   stock: Stock;
   strategy: StrategyPlan;
   rsi: number;
@@ -57,6 +58,7 @@ export async function requestAiAnalysis(input: {
   fundamentals: FundamentalAnalysis;
 }, connection: AiConnection, signal?: AbortSignal): Promise<AiAnalysisResponse> {
   const body = {
+    marketSource: input.marketSource,
     connection: { provider: connection.provider, model: connection.model, authMode: connection.authMode },
     stock: {
       symbol: input.stock.symbol,
@@ -123,15 +125,14 @@ export function buildLocalAiFallback(input: {
       headline: `${input.stock.name} 종합 분석`,
       summary: `${input.strategy.direction} 흐름이지만 뉴스와 재무 리스크를 함께 확인해야 합니다.`,
       direction: input.strategy.direction,
-      riskLevel: input.fundamentals.totalScore >= 70 ? '보통' : '주의',
+      riskLevel: '주의',
       buyScenario: '참고 매수 구간은 현재 전략표의 1~3차 분할매수 구간을 기준으로 봅니다.',
       sellScenario: '매도는 1차, 2차, 최종 목표 구간으로 나누어 리스크를 줄이는 방식이 적합합니다.',
       keyReasons: [
-        `뉴스 흐름: ${input.news.label}`,
-        `재무 평가: ${input.fundamentals.rating}`,
+        '뉴스 및 재무 데이터 미연결: 분석 근거에서 제외',
         `기술 지표 점수: ${input.strategy.confidence.toFixed(0)}/100 (예측 확률이 아님)`,
       ],
-      riskWarnings: input.fundamentals.risks,
+      riskWarnings: ['시세 지연 및 기술 지표 기반 시나리오의 한계에 유의하세요.'],
       disclaimer: '이 분석은 투자 참고용 시나리오이며 특정 종목의 매수·매도 권유가 아닙니다.',
     },
   };

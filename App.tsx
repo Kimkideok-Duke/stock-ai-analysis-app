@@ -15,9 +15,10 @@ import { AiAnalysisPanel } from './src/components/AiAnalysisPanel';
 import { AiConnections } from './src/components/AiConnections';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useWatchlist } from './src/lib/useWatchlist';
+import { useMarketData } from './src/lib/useMarketData';
 import { MetricCard } from './src/components/MetricCard';
 import { mockStocks, searchStocks, type NewsItem, type StockSymbol } from './src/data/mockMarket';
-import { buildLocalAiFallback, requestAiAnalysis, type AiAnalysisResponse, type AiConnection } from './src/lib/aiAnalysisClient';
+import { requestAiAnalysis, type AiAnalysisResponse, type AiConnection } from './src/lib/aiAnalysisClient';
 import {
   analyzeFinancials,
   analyzeNews,
@@ -26,10 +27,11 @@ import {
   formatPercent,
 } from './src/lib/indicators';
 
-const ranges = ['1M', '3M', '6M'] as const;
+const ranges = ['1D', '1M', '3M', '6M'] as const;
 type Range = (typeof ranges)[number];
 
 const rangeWindow: Record<Range, number> = {
+  '1D': 390,
   '1M': 36,
   '3M': 72,
   '6M': 120,
@@ -56,19 +58,21 @@ export default function App() {
   });
   const [aiAnalysis, setAiAnalysis] = useState<AiAnalysisResponse | null>(null);
   const [aiLoading, setAiLoading] = useState(false);
+  const [aiAsOf, setAiAsOf] = useState('');
   const watchlist = useWatchlist();
 
   const searchResults = useMemo(() => searchStocks(query), [query]);
   const selectedStock = mockStocks[selectedSymbol];
+  const market = useMarketData(selectedSymbol, selectedRange);
   const candles = useMemo(
-    () => selectedStock.candles.slice(-rangeWindow[selectedRange]),
-    [selectedRange, selectedStock.candles],
+    () => market.data?.candles ?? selectedStock.candles.slice(-rangeWindow[selectedRange]),
+    [market.data, selectedRange, selectedStock.candles],
   );
   const analysis = useMemo(() => analyzeSeries(candles), [candles]);
   const newsAnalysis = useMemo(() => analyzeNews(selectedStock.news), [selectedStock.news]);
   const financialAnalysis = useMemo(() => analyzeFinancials(selectedStock.financials), [selectedStock.financials]);
   const latest = candles[candles.length - 1] ?? selectedStock.candles[0]!;
-  const previous = candles[candles.length - 2] ?? latest;
+  const previous = { close: market.data?.previousClose ?? candles[candles.length - 2]?.close ?? latest.close };
   const change = latest.close - previous.close;
   const changePercent = previous.close === 0 ? 0 : change / previous.close;
   const money = (value: number) => formatCurrency(value, selectedStock.currency);
@@ -79,23 +83,22 @@ export default function App() {
 
   useEffect(() => {
     analysisRequest.current?.abort();
-    setAiLoading(false); setAiError('');
-    setAiAnalysis(buildLocalAiFallback({ stock: selectedStock, strategy: analysis.strategy,
-      news: newsAnalysis, fundamentals: financialAnalysis }));
+    setAiLoading(false); setAiError(''); setAiAsOf('');
+    setAiAnalysis(null);
     return () => analysisRequest.current?.abort();
-  }, [analysis, financialAnalysis, newsAnalysis, selectedStock, connection]);
+  }, [selectedSymbol, selectedRange, connection]);
 
   async function runAiAnalysis() {
-    if (!connection || aiLoading) return;
+    if (!connection || aiLoading || !market.data || market.error) return;
     const controller = new AbortController();
     analysisRequest.current?.abort(); analysisRequest.current = controller;
     setAiLoading(true); setAiError('');
     try {
-      const result = await requestAiAnalysis({ stock: selectedStock, strategy: analysis.strategy,
+      const result = await requestAiAnalysis({ marketSource: market.data, stock: selectedStock, strategy: analysis.strategy,
         rsi: analysis.rsi, macdHistogram: analysis.macd.histogram, maState: analysis.maState,
         volumeState: analysis.volumeState, news: newsAnalysis, fundamentals: financialAnalysis,
       }, connection, controller.signal);
-      if (!controller.signal.aborted) setAiAnalysis(result);
+      if (!controller.signal.aborted) { setAiAnalysis(result); setAiAsOf(market.data.asOf); }
     } catch (error) {
       if (!controller.signal.aborted) setAiError(error instanceof Error && error.message !== 'Failed to fetch'
         ? error.message : '분석 서버에 연결할 수 없습니다.');
@@ -117,7 +120,7 @@ export default function App() {
           <Text style={styles.kicker}>Stock Strategy Lab</Text>
           <Text style={styles.title}>종목 분석</Text>
           <Text style={styles.subtitle}>검색한 종목의 차트, 뉴스, 재무제표를 한 번에 확인합니다.</Text>
-          <Text style={styles.sampleNotice}>샘플 데이터 · 실시간 시세/뉴스/재무제표 미연결</Text>
+          <Text style={styles.sampleNotice}>실제 시세 API 연결 · 30초 자동 갱신 · 시세 지연 가능</Text>
         </View>
 
         <View style={styles.searchPanel}>
@@ -150,7 +153,7 @@ export default function App() {
               );
             })}
           </ScrollView>
-          {searchResults.length === 0 && <Text accessibilityLiveRegion="polite" style={styles.sectionCaption}>검색 결과가 없습니다. 현재 지원하는 샘플 종목에서 검색해주세요.</Text>}
+          {searchResults.length === 0 && <Text accessibilityLiveRegion="polite" style={styles.sectionCaption}>검색 결과가 없습니다. 현재 지원하는 5개 종목에서 검색해주세요.</Text>}
         </View>
 
         <View style={styles.watchlist}>
@@ -165,6 +168,15 @@ export default function App() {
           {!!watchlist.error && <Text style={styles.sectionCaption}>{watchlist.error}</Text>}
         </View>
 
+        <View style={{ gap: 6, marginBottom: 12 }}>
+          <Text accessibilityLiveRegion="polite" style={styles.metaText}>{market.data ? `${market.data.source} · ${market.data.exchange} · ${market.data.marketOpen ? '정규장 시간' : '정규장 외'} · ${market.data.interval}` : market.error ? '시세 연결 실패' : '시세 불러오는 중'}</Text>
+          {market.data && <Text style={styles.metaText}>캔들 기준: {new Date(market.data.asOf).toLocaleString('ko-KR')} · 수신: {new Date(market.data.fetchedAt).toLocaleTimeString('ko-KR')}</Text>}
+          {!!market.error && <Text accessibilityRole="alert" style={{ color: '#B42318' }}>{market.data ? '갱신 실패: 마지막 수신 데이터를 표시합니다. ' : ''}{market.error}</Text>}
+          <Pressable accessibilityRole="button" accessibilityLabel="시세 새로고침" disabled={market.loading} onPress={market.refresh} style={{ width: 44, height: 44, justifyContent: 'center', alignItems: 'center' }}>
+            <Ionicons name="refresh" size={22} color={market.loading ? '#98A2B3' : '#1261A0'} />
+          </Pressable>
+        </View>
+        {market.data && <>
         <View style={styles.quotePanel}>
           <View style={styles.quoteLeft}>
             <Text style={styles.companyName}>{selectedStock.name}</Text>
@@ -242,7 +254,7 @@ export default function App() {
           <MetricCard label="방향성" value={analysis.strategy.direction} caption={`지표 점수 ${analysis.strategy.confidence.toFixed(0)}/100`} />
           <MetricCard label="RSI 14" value={analysis.rsi.toFixed(1)} caption={analysis.rsiState} />
           <MetricCard label="MACD" value={analysis.macd.histogram.toFixed(2)} caption={analysis.macdState} />
-          <MetricCard label="재무 점수" value={`${financialAnalysis.totalScore}`} caption={financialAnalysis.rating} />
+          <MetricCard label="데이터" value={market.data.interval === '1m' ? '분봉' : '일봉'} caption="지연 가능 시세" />
         </View>
 
         <View style={styles.section}>
@@ -255,7 +267,10 @@ export default function App() {
         <AiConnections onChange={setConnection} onAnalyze={runAiAnalysis} loading={aiLoading} />
         {aiLoading && <Pressable accessibilityRole="button" onPress={() => { analysisRequest.current?.abort(); setAiLoading(false); setAiError('분석을 취소했습니다.'); }} style={{ padding: 12 }}><Text style={{ color: '#1261A0' }}>분석 취소</Text></Pressable>}
         {!!aiError && <Text accessibilityRole="alert" style={{ color: '#B42318', marginTop: 12 }}>{aiError}</Text>}
-        {aiAnalysis && <AiAnalysisPanel result={aiAnalysis} loading={aiLoading} />}
+        {aiAnalysis?.mode !== 'local' && aiAnalysis && <>
+          <Text style={styles.metaText}>AI 분석 기준 캔들: {new Date(aiAsOf).toLocaleString('ko-KR')}</Text>
+          <AiAnalysisPanel result={aiAnalysis} loading={aiLoading} />
+        </>}
 
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>분할매수·매도 시나리오</Text>
@@ -279,7 +294,7 @@ export default function App() {
 
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>관련 뉴스</Text>
+            <Text style={styles.sectionTitle}>관련 뉴스 (샘플 · 미연결)</Text>
             <View style={styles.newsBadge}>
               <Text style={styles.newsBadgeText}>{newsAnalysis.label}</Text>
             </View>
@@ -291,7 +306,7 @@ export default function App() {
         </View>
 
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>재무제표 기반 분석</Text>
+          <Text style={styles.sectionTitle}>재무제표 기반 분석 (샘플 · 미연결)</Text>
           <View style={styles.scoreRow}>
             <ScoreBox label="성장성" value={financialAnalysis.growthScore} />
             <ScoreBox label="수익성" value={financialAnalysis.profitabilityScore} />
@@ -306,6 +321,7 @@ export default function App() {
           ))}
         </View>
 
+        </>}
         <Text style={styles.disclaimer}>
           이 앱의 분석 결과는 투자 참고용 시나리오이며 특정 종목의 매수·매도 권유가 아닙니다.
         </Text>

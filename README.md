@@ -15,19 +15,23 @@ React Native / Expo 기반 주식 분석 앱 MVP입니다.
 
 ## 현재 기능
 
+- 실제 Yahoo 시세 API, 30초 자동 갱신 (지연 가능, 실시간 체결 보장 아님)
+- 1D 분봉 및 1M/3M/6M 일봉, 출처/기준 시각/갱신 오류 표시
 - 종목명/티커 검색
 - 캔들 차트와 거래량 표시
 - 차트 확대/축소, 과거/최신 구간 이동, 캔들 OHLCV 선택 조회
 - 관심종목 추가/해제 및 로컬 저장
 - SMA, EMA, Bollinger Band, Volume 토글
-- RSI, MACD, 방향성, 재무 점수 표시
+- 실제 OHLCV 기반 RSI, MACD, 방향성 표시
 - 차트 분석 요약
 - 참고 매수 구간, 손절 기준, 분할매수/분할매도 시나리오
-- 관련 뉴스와 뉴스 감성 요약
-- 재무제표 기반 성장성, 수익성, 안정성, 밸류에이션 분석
+- 관련 뉴스와 재무 분석은 샘플 표시 (AI 판단 근거에서는 제외)
 - Gemini/GPT/Claude 개인 API 연결, 로컬 ChatGPT 구독 연결 경로
 
 ## 개인 AI API 연결
+
+시세 API 설명과 제한은 [docs/market-data.md](docs/market-data.md)를 참고합니다.
+PC 테스트 시 웹 서버와 함께 `npm run ai-server`로 API 서버(8787)를 실행해야 합니다.
 
 PC 테스트: http://localhost:8081
 

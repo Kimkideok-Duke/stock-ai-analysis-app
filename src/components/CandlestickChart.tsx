@@ -25,6 +25,11 @@ type CandlestickChartProps = {
 const priceHeight = 220;
 const volumeHeight = 48;
 const chartPadding = 18;
+function candleTime(value?: string) {
+  if (!value) return '';
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? value : date.toLocaleString('ko-KR', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false });
+}
 
 export function CandlestickChart({
   candles,
@@ -69,7 +74,7 @@ export function CandlestickChart({
         <ChartTool name="chevron-back" label="이전 캔들 구간" disabled={start === 0} onPress={() => { setOffset(Math.min(candles.length - count, offset + Math.max(1, Math.floor(count / 3)))); setSelected(null); }} />
         <ChartTool name="chevron-forward" label="다음 캔들 구간" disabled={offset === 0} onPress={() => { setOffset(Math.max(0, offset - Math.max(1, Math.floor(count / 3)))); setSelected(null); }} />
         <ChartTool name="play-skip-forward-outline" label="최신 캔들" disabled={offset === 0} onPress={() => { setOffset(0); setSelected(null); }} />
-        <Text style={styles.legendText}>{count}개 · {windowCandles[0]?.time} ~ {windowCandles[count - 1]?.time}</Text>
+        <Text style={[styles.legendText, { flexShrink: 1 }]}>{count}개 · {candleTime(windowCandles[0]?.time)} ~ {candleTime(windowCandles[count - 1]?.time)}</Text>
       </View>
 
       <View onLayout={event => setChartWidth(Math.max(240, event.nativeEvent.layout.width))}>
@@ -141,7 +146,7 @@ export function CandlestickChart({
       {selectedCandle && <View style={styles.details} accessibilityLiveRegion="polite">
         <ChartTool name="chevron-back" label="이전 캔들 상세" disabled={selectedIndex === 0} onPress={() => setSelected(selectedIndex - 1)} />
         <ChartTool name="chevron-forward" label="다음 캔들 상세" disabled={selectedIndex >= count - 1} onPress={() => setSelected(selectedIndex + 1)} />
-        <Text style={styles.detailText}>{selectedCandle.time}</Text>
+        <Text style={styles.detailText}>{candleTime(selectedCandle.time)}</Text>
         <Text style={styles.detailText}>시가 {formatCurrency(selectedCandle.open, currency)}</Text>
         <Text style={styles.detailText}>고가 {formatCurrency(selectedCandle.high, currency)}</Text>
         <Text style={styles.detailText}>저가 {formatCurrency(selectedCandle.low, currency)}</Text>
