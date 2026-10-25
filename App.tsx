@@ -16,12 +16,13 @@ import { AiConnections } from './src/components/AiConnections';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useWatchlist } from './src/lib/useWatchlist';
 import { useMarketData } from './src/lib/useMarketData';
+import { useCompanyData } from './src/lib/useCompanyData';
+import { deriveFinancials } from './src/lib/companyModel';
+import { CompanyPanels } from './src/components/CompanyPanels';
 import { MetricCard } from './src/components/MetricCard';
 import { mockStocks, searchStocks, type NewsItem, type StockSymbol } from './src/data/mockMarket';
 import { requestAiAnalysis, type AiAnalysisResponse, type AiConnection } from './src/lib/aiAnalysisClient';
 import {
-  analyzeFinancials,
-  analyzeNews,
   analyzeSeries,
   formatCurrency,
   formatPercent,
@@ -64,14 +65,16 @@ export default function App() {
   const searchResults = useMemo(() => searchStocks(query), [query]);
   const selectedStock = mockStocks[selectedSymbol];
   const market = useMarketData(selectedSymbol, selectedRange);
+  const company = useCompanyData(selectedSymbol);
   const candles = useMemo(
     () => market.data?.candles ?? selectedStock.candles.slice(-rangeWindow[selectedRange]),
     [market.data, selectedRange, selectedStock.candles],
   );
   const analysis = useMemo(() => analyzeSeries(candles), [candles]);
-  const newsAnalysis = useMemo(() => analyzeNews(selectedStock.news), [selectedStock.news]);
-  const financialAnalysis = useMemo(() => analyzeFinancials(selectedStock.financials), [selectedStock.financials]);
   const latest = candles[candles.length - 1] ?? selectedStock.candles[0]!;
+  const companyData = company.error ? null : company.data;
+  const actualNews = companyData?.news.status === 'ok' ? companyData.news.data.items : [];
+  const financialAnalysis = deriveFinancials(companyData?.financials.status === 'ok' ? companyData.financials.data : null, market.data ? latest.close : null)?.analysis ?? null;
   const previous = { close: market.data?.previousClose ?? candles[candles.length - 2]?.close ?? latest.close };
   const change = latest.close - previous.close;
   const changePercent = previous.close === 0 ? 0 : change / previous.close;
@@ -94,9 +97,9 @@ export default function App() {
     analysisRequest.current?.abort(); analysisRequest.current = controller;
     setAiLoading(true); setAiError('');
     try {
-      const result = await requestAiAnalysis({ marketSource: market.data, stock: selectedStock, strategy: analysis.strategy,
+      const result = await requestAiAnalysis({ companyContext: companyData, marketSource: market.data, stock: { ...selectedStock, news: actualNews }, strategy: analysis.strategy,
         rsi: analysis.rsi, macdHistogram: analysis.macd.histogram, maState: analysis.maState,
-        volumeState: analysis.volumeState, news: newsAnalysis, fundamentals: financialAnalysis,
+        volumeState: analysis.volumeState, news: actualNews.length ? { label: '중립', sentimentScore: 0, summary: '실제 뉴스 제목 목록입니다. 감성은 별도 평가하지 않았으며 원문 전체를 수집하지 않았습니다.' } : null, fundamentals: financialAnalysis,
       }, connection, controller.signal);
       if (!controller.signal.aborted) { setAiAnalysis(result); setAiAsOf(market.data.asOf); }
     } catch (error) {
@@ -294,36 +297,8 @@ export default function App() {
           ))}
         </View>
 
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>관련 뉴스 (샘플 · 미연결)</Text>
-            <View style={styles.newsBadge}>
-              <Text style={styles.newsBadgeText}>{newsAnalysis.label}</Text>
-            </View>
-          </View>
-          <Text style={styles.sectionCaption}>{newsAnalysis.summary}</Text>
-          {selectedStock.news.map((item) => (
-            <NewsCard key={item.title} item={item} />
-          ))}
-        </View>
-
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>재무제표 기반 분석 (샘플 · 미연결)</Text>
-          <View style={styles.scoreRow}>
-            <ScoreBox label="성장성" value={financialAnalysis.growthScore} />
-            <ScoreBox label="수익성" value={financialAnalysis.profitabilityScore} />
-            <ScoreBox label="안정성" value={financialAnalysis.stabilityScore} />
-            <ScoreBox label="밸류" value={financialAnalysis.valuationScore} />
-          </View>
-          {financialAnalysis.highlights.map((item) => (
-            <Bullet key={item} text={item} />
-          ))}
-          {financialAnalysis.risks.map((item) => (
-            <Bullet key={item} text={item} muted />
-          ))}
-        </View>
-
         </>}
+        <CompanyPanels data={company.data} error={company.error} loading={company.loading} onRefresh={company.refresh} price={market.data ? latest.close : null} />
         <Text style={styles.disclaimer}>
           이 앱의 분석 결과는 투자 참고용 시나리오이며 특정 종목의 매수·매도 권유가 아닙니다.
         </Text>

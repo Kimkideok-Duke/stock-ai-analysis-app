@@ -26,6 +26,7 @@ Module._load = function (id, parent, isMain) {
   if (id === '@expo/vector-icons/Ionicons') return () => null;
   if (/CandlestickChart|AiAnalysisPanel|MetricCard/.test(id)) return { CandlestickChart: () => null, AiAnalysisPanel: () => null, MetricCard: () => null };
   if (id.endsWith('/useWatchlist')) return { useWatchlist: () => ({ ready: true, favorites: [], toggle() {} }) };
+  if (id.endsWith('/useCompanyData')) return { useCompanyData: () => ({ data: null, error: '', loading: false, refresh() {} }) };
   if (id.endsWith('/useMarketData')) return { useMarketData: (symbol, range) => ({
     data: missing.has(symbol) ? null : { symbol, range, candles: mockStocks[symbol].candles, source: 'Test', interval: '1d', delay: 'possible', asOf: '2026-10-23T20:00:00Z', fetchedAt: '2026-10-23T20:00:00Z' },
     error: '', loading: missing.has(symbol), refresh() {},

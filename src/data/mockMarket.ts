@@ -10,6 +10,7 @@ export type Candle = {
 export type StockSymbol = 'AAPL' | 'TSLA' | 'NVDA' | 'MSFT' | '005930';
 
 export type NewsItem = {
+  url?: string;
   title: string;
   source: string;
   publishedAt: string;

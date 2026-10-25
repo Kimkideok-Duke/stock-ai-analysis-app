@@ -6,6 +6,7 @@ const { z } = require('zod');
 const { connectionSchema, generate, analyze, publicError } = require('./aiProviders');
 const { installSubscription } = require('./chatgptSubscription');
 const { installMarket } = require('./marketData');
+const { installCompany } = require('./companyData');
 
 const app = express();
 const port = Number(process.env.AI_SERVER_PORT ?? 8787);
@@ -19,8 +20,10 @@ app.use((req, res, next) => {
 });
 const subscription = installSubscription(app, port);
 installMarket(app);
+installCompany(app);
 
 const analysisRequestSchema = z.object({
+  companyContext: z.object({ news: z.unknown(), financials: z.unknown() }).optional(),
   marketSource: z.object({ source: z.string(), asOf: z.string(), interval: z.string(), delay: z.string() }).optional(),
   stock: z.object({
     symbol: z.string(),
@@ -57,9 +60,12 @@ const analysisRequestSchema = z.object({
         title: z.string(),
         sentiment: z.string(),
         summary: z.string(),
+        source: z.string().optional(),
+        publishedAt: z.string().optional(),
+        url: z.string().optional(),
       }),
     ),
-  }),
+  }).nullable(),
   fundamentals: z.object({
     totalScore: z.number(),
     rating: z.string(),
@@ -69,7 +75,7 @@ const analysisRequestSchema = z.object({
     valuationScore: z.number(),
     highlights: z.array(z.string()),
     risks: z.array(z.string()),
-  }),
+  }).nullable(),
 });
 
 app.get('/health', (_req, res) => {

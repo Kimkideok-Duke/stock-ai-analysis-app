@@ -1,6 +1,7 @@
 import type { Stock } from '../data/mockMarket';
 import type { FundamentalAnalysis, NewsAnalysis, StrategyPlan } from './indicators';
 import { requestJson } from './httpClient';
+import type { CompanyData } from './companyModel';
 
 export type AiProvider = 'gemini' | 'openai' | 'anthropic';
 export type AiConnection = { provider: AiProvider; model: string; apiKey: string; authMode?: 'subscription'; sessionToken?: string };
@@ -47,6 +48,7 @@ export type AiAnalysisResponse = {
 const aiApiUrl = process.env.EXPO_PUBLIC_AI_API_URL ?? 'http://localhost:8787';
 
 export async function requestAiAnalysis(input: {
+  companyContext?: CompanyData | null;
   marketSource?: { source: string; asOf: string; interval: string; delay: string };
   stock: Stock;
   strategy: StrategyPlan;
@@ -54,10 +56,11 @@ export async function requestAiAnalysis(input: {
   macdHistogram: number;
   maState: string;
   volumeState: string;
-  news: NewsAnalysis;
-  fundamentals: FundamentalAnalysis;
+  news: NewsAnalysis | null;
+  fundamentals: FundamentalAnalysis | null;
 }, connection: AiConnection, signal?: AbortSignal): Promise<AiAnalysisResponse> {
   const body = {
+    companyContext: input.companyContext ? { news: input.companyContext.news, financials: input.companyContext.financials } : undefined,
     marketSource: input.marketSource,
     connection: { provider: connection.provider, model: connection.model, authMode: connection.authMode },
     stock: {
@@ -79,16 +82,19 @@ export async function requestAiAnalysis(input: {
       stopLoss: input.strategy.stopLoss,
       sellTargets: input.strategy.sellTargets,
     },
-    news: {
+    news: input.news ? {
       label: input.news.label,
       summary: input.news.summary,
       items: input.stock.news.map((item) => ({
         title: item.title,
         sentiment: item.sentiment,
         summary: item.summary,
+        source: item.source,
+        publishedAt: item.publishedAt,
+        url: item.url,
       })),
-    },
-    fundamentals: {
+    } : null,
+    fundamentals: input.fundamentals ? {
       totalScore: input.fundamentals.totalScore,
       rating: input.fundamentals.rating,
       growthScore: input.fundamentals.growthScore,
@@ -97,7 +103,7 @@ export async function requestAiAnalysis(input: {
       valuationScore: input.fundamentals.valuationScore,
       highlights: input.fundamentals.highlights,
       risks: input.fundamentals.risks,
-    },
+    } : null,
   };
 
   return requestJson(`${aiApiUrl}/api/ai-analysis`, {
