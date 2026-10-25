@@ -17,13 +17,15 @@ React Native / Expo 기반 주식 분석 앱 MVP입니다.
 
 - 종목명/티커 검색
 - 캔들 차트와 거래량 표시
+- 차트 확대/축소, 과거/최신 구간 이동, 캔들 OHLCV 선택 조회
+- 관심종목 추가/해제 및 로컬 저장
 - SMA, EMA, Bollinger Band, Volume 토글
 - RSI, MACD, 방향성, 재무 점수 표시
 - 차트 분석 요약
 - 참고 매수 구간, 손절 기준, 분할매수/분할매도 시나리오
 - 관련 뉴스와 뉴스 감성 요약
 - 재무제표 기반 성장성, 수익성, 안정성, 밸류에이션 분석
-- Gemini AI 종합 분석 서버 구조
+- Gemini/GPT/Claude 개인 API 연결, 로컬 ChatGPT 구독 연결 경로
 
 ## 개인 AI API 연결
 
@@ -49,6 +51,8 @@ ChatGPT 구독 연결 구조는 `docs/chat-subscription.md`를 참고하세요.
 
 ```powershell
 .\.tools\node\npm.cmd run typecheck
+.\.tools\node\npm.cmd test
 ```
 
 현재 데이터는 `src/data/mockMarket.ts`의 샘플 데이터입니다. 실제 시세, 뉴스, 재무제표 API는 다음 단계에서 서버에 연결하는 구조로 확장합니다.
+점검 결과와 남은 작업은 `docs/qa-2026-10-26.md`에 기록했습니다.

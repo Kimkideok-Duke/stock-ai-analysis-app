@@ -82,7 +82,7 @@ function installSubscription(app, port) {
       if (attempts.size > 20) return res.status(429).json({ message: '잠시 후 다시 시도해주세요.' });
       const host = readHost();
       const { transaction, url } = makeAuthorization(host.hostId, `http://127.0.0.1:${port}/auth/callback`,
-        req.body.newAccount ? undefined : host.registration);
+        req.body?.newAccount ? undefined : host.registration);
       attempts.set(transaction.state, transaction);
       res.json({ url, attempt: transaction.poll });
     } catch { res.status(500).json({ message: '로컬 로그인 준비에 실패했습니다.' }); }
@@ -142,7 +142,7 @@ function installSubscription(app, port) {
     }
     res.json({ ok: true });
   });
-  return { async analyze(req, payload) {
+  return { async analyze(req, payload, signal) {
     const session = sessions.get(bearer(req));
     if (!local(req) || !session || session.expires < Date.now()) throw new Error('ChatGPT에 다시 로그인해주세요.');
     const model = req.body.connection?.model;
@@ -150,7 +150,7 @@ function installSubscription(app, port) {
     const response = await fetch(`${resource}/responses`, { method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.accessToken}` },
       body: JSON.stringify({ model, input: [{ role: 'user', content: analysisPrompt(payload) }], store: false, stream: true }),
-      signal: AbortSignal.timeout(90000) });
+      signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(90000)]) : AbortSignal.timeout(90000) });
     return readCompletedStream(response);
   } };
 }

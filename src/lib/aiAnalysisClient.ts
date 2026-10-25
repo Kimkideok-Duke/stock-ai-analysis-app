@@ -1,17 +1,15 @@
 import type { Stock } from '../data/mockMarket';
 import type { FundamentalAnalysis, NewsAnalysis, StrategyPlan } from './indicators';
+import { requestJson } from './httpClient';
 
 export type AiProvider = 'gemini' | 'openai' | 'anthropic';
 export type AiConnection = { provider: AiProvider; model: string; apiKey: string; authMode?: 'subscription'; sessionToken?: string };
 
 export async function subscriptionRequest(path: string, credential?: string, body: object = {}, signal?: AbortSignal) {
-  const response = await fetch(`${aiApiUrl}/api/subscription/${path}`, { method: path === 'capabilities' ? 'GET' : 'POST', signal,
+  return requestJson(`${aiApiUrl}/api/subscription/${path}`, { method: path === 'capabilities' ? 'GET' : 'POST',
     headers: { 'Content-Type': 'application/json', ...(credential ? { Authorization: `Bearer ${credential}` } : {}) },
     ...(path === 'capabilities' ? {} : { body: JSON.stringify(body) }),
-  });
-  const data = await response.json();
-  if (!response.ok) throw new Error(data.message ?? '구독 계정 연결 요청에 실패했습니다.');
-  return data;
+  }, signal, 15000);
 }
 export const aiProviders = [
   { id: 'gemini' as const, label: 'Gemini', model: 'gemini-flash-latest', url: 'https://aistudio.google.com/api-keys' },
@@ -20,13 +18,11 @@ export const aiProviders = [
 ];
 
 export async function testAiConnection(connection: AiConnection, signal?: AbortSignal) {
-  const response = await fetch(`${aiApiUrl}/api/ai-connection/test`, {
-    method: 'POST', signal,
+  return requestJson(`${aiApiUrl}/api/ai-connection/test`, {
+    method: 'POST',
     headers: { 'Content-Type': 'application/json', 'x-ai-api-key': connection.apiKey },
     body: JSON.stringify({ connection: { provider: connection.provider, model: connection.model } }),
-  });
-  const data = await response.json();
-  if (!response.ok) throw new Error(data.message ?? '연결 테스트 실패');
+  }, signal, 65000);
 }
 
 export type AiAnalysisResult = {
@@ -102,9 +98,8 @@ export async function requestAiAnalysis(input: {
     },
   };
 
-  const response = await fetch(`${aiApiUrl}/api/ai-analysis`, {
+  return requestJson(`${aiApiUrl}/api/ai-analysis`, {
     method: 'POST',
-    signal,
     headers: {
       'Content-Type': 'application/json',
       ...(connection.authMode === 'subscription'
@@ -112,14 +107,7 @@ export async function requestAiAnalysis(input: {
         : { 'x-ai-api-key': connection.apiKey }),
     },
     body: JSON.stringify(body),
-  });
-
-  const data = await response.json();
-  if (!response.ok) {
-    throw new Error(data?.message ?? 'AI analysis request failed');
-  }
-
-  return data as AiAnalysisResponse;
+  }, signal) as Promise<AiAnalysisResponse>;
 }
 
 export function buildLocalAiFallback(input: {
@@ -141,7 +129,7 @@ export function buildLocalAiFallback(input: {
       keyReasons: [
         `뉴스 흐름: ${input.news.label}`,
         `재무 평가: ${input.fundamentals.rating}`,
-        `차트 신뢰도: ${input.strategy.confidence.toFixed(0)}%`,
+        `기술 지표 점수: ${input.strategy.confidence.toFixed(0)}/100 (예측 확률이 아님)`,
       ],
       riskWarnings: input.fundamentals.risks,
       disclaimer: '이 분석은 투자 참고용 시나리오이며 특정 종목의 매수·매도 권유가 아닙니다.',

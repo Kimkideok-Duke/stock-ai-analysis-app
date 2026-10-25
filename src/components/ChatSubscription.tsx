@@ -12,6 +12,7 @@ export function ChatSubscription({ provider, onChange, onAnalyze, loading }: Pro
   const [models, setModels] = useState<Model[]>([]);
   const [model, setModel] = useState('');
   const [connected, setConnected] = useState(false);
+  const [loginUrl, setLoginUrl] = useState('');
   const credential = useRef<string | undefined>(undefined);
   const session = useRef<string | undefined>(undefined);
   const controller = useRef<AbortController | null>(null);
@@ -36,11 +37,15 @@ export function ChatSubscription({ provider, onChange, onAnalyze, loading }: Pro
 
   async function start(newAccount: boolean) {
     controller.current?.abort(); const current = new AbortController(); controller.current = current;
-    setPending(true); setError('');
+    if (timer.current) clearTimeout(timer.current);
+    const previous = credential.current; credential.current = undefined;
+    if (previous) void subscriptionRequest('disconnect', previous).catch(() => {});
+    setPending(true); setError(''); setLoginUrl('');
     try {
       const data = await subscriptionRequest('start', undefined, { newAccount }, current.signal);
       if (current.signal.aborted) return;
       credential.current = data.attempt;
+      setLoginUrl(data.url);
       await Linking.openURL(data.url);
       const poll = async () => {
         if (current.signal.aborted) return;
@@ -51,22 +56,33 @@ export function ChatSubscription({ provider, onChange, onAnalyze, loading }: Pro
           if (status.status === 'connected') {
             session.current = status.session; credential.current = undefined;
             setModels(status.models); setConnected(true); setPending(false);
+            setLoginUrl('');
             const selected = status.models[0].id;
             setModel(selected); onChange({ provider: 'openai', model: selected, apiKey: '', authMode: 'subscription', sessionToken: status.session });
           } else timer.current = setTimeout(poll, 1500);
         } catch (err) {
-          if (!current.signal.aborted) { setPending(false); setError(err instanceof Error ? err.message : '로그인에 실패했습니다.'); }
+          if (!current.signal.aborted) {
+            const failed = credential.current; credential.current = undefined;
+            if (failed) void subscriptionRequest('disconnect', failed).catch(() => {});
+            setPending(false); setLoginUrl(''); setError(err instanceof Error ? err.message : '로그인에 실패했습니다.');
+          }
         }
       };
       void poll();
-    } catch { if (!current.signal.aborted) { setPending(false); setError('로그인 창을 열지 못했습니다. 서버 연결을 확인해주세요.'); } }
+    } catch {
+      if (!current.signal.aborted) {
+        const failed = credential.current; credential.current = undefined;
+        if (failed) void subscriptionRequest('disconnect', failed).catch(() => {});
+        setPending(false); setLoginUrl(''); setError('로그인 창을 열지 못했습니다. 서버 연결을 확인해주세요.');
+      }
+    }
   }
 
   async function disconnect() {
     controller.current?.abort(); if (timer.current) clearTimeout(timer.current);
     const token = session.current ?? credential.current;
     session.current = undefined; credential.current = undefined;
-    setConnected(false); setPending(false); setModels([]); setError(''); onChange(null);
+    setConnected(false); setPending(false); setModels([]); setError(''); setLoginUrl(''); onChange(null);
     if (token) try { await subscriptionRequest('disconnect', token); }
     catch { setError('로컬 연결을 해제했습니다. 서버 세션은 만료 시 삭제됩니다.'); }
   }
@@ -94,6 +110,7 @@ export function ChatSubscription({ provider, onChange, onAnalyze, loading }: Pro
       </Pressable>
       {pending ? <Pressable accessibilityRole="button" onPress={disconnect}><Text style={styles.link}>로그인 취소</Text></Pressable>
         : <Pressable accessibilityRole="button" disabled={!available} onPress={() => start(true)}><Text style={styles.link}>다른 ChatGPT 계정 연결</Text></Pressable>}
+      {pending && !!loginUrl && <Pressable accessibilityRole="link" onPress={() => { void Linking.openURL(loginUrl).catch(() => setError('로그인 창을 열 수 없습니다. 브라우저 팝업 설정을 확인해주세요.')); }}><Text style={styles.link}>로그인 페이지 다시 열기</Text></Pressable>}
       {available === null && <Text style={styles.note}>연결 가능 여부 확인 중</Text>}
       {available === false && <Text style={styles.note}>구독 연결은 PC 로컬 서버에서 사용할 수 있습니다. 서버 실행 상태를 확인해주세요.</Text>}
     </>}

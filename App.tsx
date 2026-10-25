@@ -6,12 +6,15 @@ import {
   StyleSheet,
   Text,
   TextInput,
+  Pressable,
   TouchableOpacity,
   View,
 } from 'react-native';
 import { CandlestickChart } from './src/components/CandlestickChart';
 import { AiAnalysisPanel } from './src/components/AiAnalysisPanel';
 import { AiConnections } from './src/components/AiConnections';
+import Ionicons from '@expo/vector-icons/Ionicons';
+import { useWatchlist } from './src/lib/useWatchlist';
 import { MetricCard } from './src/components/MetricCard';
 import { mockStocks, searchStocks, type NewsItem, type StockSymbol } from './src/data/mockMarket';
 import { buildLocalAiFallback, requestAiAnalysis, type AiAnalysisResponse, type AiConnection } from './src/lib/aiAnalysisClient';
@@ -53,6 +56,7 @@ export default function App() {
   });
   const [aiAnalysis, setAiAnalysis] = useState<AiAnalysisResponse | null>(null);
   const [aiLoading, setAiLoading] = useState(false);
+  const watchlist = useWatchlist();
 
   const searchResults = useMemo(() => searchStocks(query), [query]);
   const selectedStock = mockStocks[selectedSymbol];
@@ -113,10 +117,12 @@ export default function App() {
           <Text style={styles.kicker}>Stock Strategy Lab</Text>
           <Text style={styles.title}>종목 분석</Text>
           <Text style={styles.subtitle}>검색한 종목의 차트, 뉴스, 재무제표를 한 번에 확인합니다.</Text>
+          <Text style={styles.sampleNotice}>샘플 데이터 · 실시간 시세/뉴스/재무제표 미연결</Text>
         </View>
 
         <View style={styles.searchPanel}>
           <TextInput
+            accessibilityLabel="종목 검색"
             value={query}
             onChangeText={setQuery}
             placeholder="종목명 또는 티커 검색: NVDA, 애플, 삼성전자"
@@ -129,6 +135,8 @@ export default function App() {
               const active = stock.symbol === selectedSymbol;
               return (
                 <TouchableOpacity
+                  accessibilityRole="button"
+                  accessibilityLabel={`${stock.name} 선택`}
                   key={stock.symbol}
                   activeOpacity={0.85}
                   onPress={() => setSelectedSymbol(stock.symbol)}
@@ -142,6 +150,19 @@ export default function App() {
               );
             })}
           </ScrollView>
+          {searchResults.length === 0 && <Text accessibilityLiveRegion="polite" style={styles.sectionCaption}>검색 결과가 없습니다. 현재 지원하는 샘플 종목에서 검색해주세요.</Text>}
+        </View>
+
+        <View style={styles.watchlist}>
+          <Text style={styles.panelTitle}>관심종목</Text>
+          <View style={styles.favoriteRow}>
+            {watchlist.favorites.map(symbol => <Pressable key={symbol} accessibilityRole="button" accessibilityLabel={`${symbol} 관심종목 선택`}
+              onPress={() => { setSelectedSymbol(symbol); setQuery(''); }} style={styles.favoriteItem}>
+              <Text style={styles.resultSymbol}>{symbol}</Text>
+            </Pressable>)}
+            {watchlist.ready && watchlist.favorites.length === 0 && <Text style={styles.metaText}>등록된 관심종목이 없습니다.</Text>}
+          </View>
+          {!!watchlist.error && <Text style={styles.sectionCaption}>{watchlist.error}</Text>}
         </View>
 
         <View style={styles.quotePanel}>
@@ -153,6 +174,11 @@ export default function App() {
             <Text style={styles.price}>{money(latest.close)}</Text>
           </View>
           <View style={styles.quoteRight}>
+            <Pressable accessibilityRole="button" accessibilityLabel={watchlist.favorites.includes(selectedSymbol) ? '관심종목 해제' : '관심종목 추가'}
+              accessibilityState={{ disabled: !watchlist.ready }} disabled={!watchlist.ready} onPress={() => watchlist.toggle(selectedSymbol)}
+              {...{ title: watchlist.favorites.includes(selectedSymbol) ? '관심종목 해제' : '관심종목 추가' }} style={styles.favoriteButton}>
+              <Ionicons name={watchlist.favorites.includes(selectedSymbol) ? 'star' : 'star-outline'} size={22} color="#946A00" />
+            </Pressable>
             <Text style={[styles.change, change >= 0 ? styles.up : styles.down]}>
               {change >= 0 ? '+' : ''}
               {money(change)}
@@ -167,6 +193,8 @@ export default function App() {
           <View style={styles.rangeTabs}>
             {ranges.map((range) => (
               <TouchableOpacity
+                accessibilityRole="tab"
+                accessibilityState={{ selected: selectedRange === range }}
                 key={range}
                 activeOpacity={0.8}
                 onPress={() => setSelectedRange(range)}
@@ -183,6 +211,9 @@ export default function App() {
           <View style={styles.indicatorToggles}>
             {(Object.keys(indicatorLabels) as IndicatorKey[]).map((key) => (
               <TouchableOpacity
+                accessibilityRole="checkbox"
+                accessibilityLabel={`${indicatorLabels[key]} 표시`}
+                accessibilityState={{ checked: visibleIndicators[key] }}
                 key={key}
                 activeOpacity={0.8}
                 onPress={() => toggleIndicator(key)}
@@ -197,6 +228,7 @@ export default function App() {
         </View>
 
         <CandlestickChart
+          key={`${selectedSymbol}-${selectedRange}`}
           candles={candles}
           currency={selectedStock.currency}
           ma5={analysis.ma5}
@@ -207,7 +239,7 @@ export default function App() {
         />
 
         <View style={styles.metricsGrid}>
-          <MetricCard label="방향성" value={analysis.strategy.direction} caption={`신뢰도 ${analysis.strategy.confidence.toFixed(0)}%`} />
+          <MetricCard label="방향성" value={analysis.strategy.direction} caption={`지표 점수 ${analysis.strategy.confidence.toFixed(0)}/100`} />
           <MetricCard label="RSI 14" value={analysis.rsi.toFixed(1)} caption={analysis.rsiState} />
           <MetricCard label="MACD" value={analysis.macd.histogram.toFixed(2)} caption={analysis.macdState} />
           <MetricCard label="재무 점수" value={`${financialAnalysis.totalScore}`} caption={financialAnalysis.rating} />
@@ -221,6 +253,7 @@ export default function App() {
         </View>
 
         <AiConnections onChange={setConnection} onAnalyze={runAiAnalysis} loading={aiLoading} />
+        {aiLoading && <Pressable accessibilityRole="button" onPress={() => { analysisRequest.current?.abort(); setAiLoading(false); setAiError('분석을 취소했습니다.'); }} style={{ padding: 12 }}><Text style={{ color: '#1261A0' }}>분석 취소</Text></Pressable>}
         {!!aiError && <Text accessibilityRole="alert" style={{ color: '#B42318', marginTop: 12 }}>{aiError}</Text>}
         {aiAnalysis && <AiAnalysisPanel result={aiAnalysis} loading={aiLoading} />}
 
@@ -362,6 +395,9 @@ const styles = StyleSheet.create({
     backgroundColor: '#F5F7FA',
   },
   screen: {
+    width: '100%',
+    maxWidth: 960,
+    alignSelf: 'center',
     paddingHorizontal: 16,
     paddingBottom: 28,
     paddingTop: 10,
@@ -369,6 +405,11 @@ const styles = StyleSheet.create({
   header: {
     marginBottom: 14,
   },
+  sampleNotice: { color: '#825C13', fontSize: 12, marginTop: 8, lineHeight: 18 },
+  watchlist: { marginBottom: 12, gap: 8 },
+  favoriteRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, alignItems: 'center' },
+  favoriteItem: { padding: 10, minHeight: 40, borderBottomWidth: 1, borderColor: '#98A2B3' },
+  favoriteButton: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center', alignSelf: 'flex-end' },
   kicker: {
     color: '#2563EB',
     fontSize: 13,

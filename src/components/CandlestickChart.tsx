@@ -1,5 +1,7 @@
-import React, { useMemo } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import React, { useMemo, useState } from 'react';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
+import Ionicons from '@expo/vector-icons/Ionicons';
+import { buildChartModel } from '../lib/chartModel';
 import Svg, { Line, Polyline, Rect, Text as SvgText } from 'react-native-svg';
 import type { Candle } from '../data/mockMarket';
 import type { BollingerBandPoint } from '../lib/indicators';
@@ -20,7 +22,6 @@ type CandlestickChartProps = {
   };
 };
 
-const chartWidth = 344;
 const priceHeight = 220;
 const volumeHeight = 48;
 const chartPadding = 18;
@@ -34,9 +35,21 @@ export function CandlestickChart({
   bollinger20,
   visibleIndicators,
 }: CandlestickChartProps) {
+  const [chartWidth, setChartWidth] = useState(344);
+  const [windowSize, setWindowSize] = useState(60);
+  const [offset, setOffset] = useState(0);
+  const [selected, setSelected] = useState<number | null>(null);
+  const count = Math.min(candles.length, windowSize);
+  const end = candles.length - Math.min(offset, Math.max(0, candles.length - count));
+  const start = Math.max(0, end - count);
+  const windowCandles = useMemo(() => candles.slice(start, end), [candles, start, end]);
+  const selectedIndex = Math.max(0, Math.min(count - 1, selected ?? count - 1));
+  const selectedCandle = windowCandles[selectedIndex];
   const model = useMemo(
-    () => buildChartModel(candles, ma5, ma20, ema20, bollinger20),
-    [bollinger20, candles, ema20, ma5, ma20],
+    () => buildChartModel(windowCandles, visibleIndicators.sma ? ma5.slice(start, end) : [],
+      visibleIndicators.sma ? ma20.slice(start, end) : [], visibleIndicators.ema ? ema20.slice(start, end) : [],
+      visibleIndicators.bollinger ? bollinger20.slice(start, end) : [], chartWidth),
+    [bollinger20, windowCandles, ema20, ma5, ma20, start, end, chartWidth, visibleIndicators],
   );
 
   return (
@@ -50,7 +63,17 @@ export function CandlestickChart({
         </View>
       </View>
 
-      <Svg width="100%" height={priceHeight + volumeHeight} viewBox={`0 0 ${chartWidth} ${priceHeight + volumeHeight}`}>
+      <View style={styles.toolbar}>
+        <ChartTool name="remove-outline" label="차트 축소" disabled={count >= candles.length} onPress={() => { setWindowSize(Math.min(candles.length, count + 12)); setSelected(null); }} />
+        <ChartTool name="add-outline" label="차트 확대" disabled={count <= 12} onPress={() => { setWindowSize(Math.max(12, count - 12)); setSelected(null); }} />
+        <ChartTool name="chevron-back" label="이전 캔들 구간" disabled={start === 0} onPress={() => { setOffset(Math.min(candles.length - count, offset + Math.max(1, Math.floor(count / 3)))); setSelected(null); }} />
+        <ChartTool name="chevron-forward" label="다음 캔들 구간" disabled={offset === 0} onPress={() => { setOffset(Math.max(0, offset - Math.max(1, Math.floor(count / 3)))); setSelected(null); }} />
+        <ChartTool name="play-skip-forward-outline" label="최신 캔들" disabled={offset === 0} onPress={() => { setOffset(0); setSelected(null); }} />
+        <Text style={styles.legendText}>{count}개 · {windowCandles[0]?.time} ~ {windowCandles[count - 1]?.time}</Text>
+      </View>
+
+      <View onLayout={event => setChartWidth(Math.max(240, event.nativeEvent.layout.width))}>
+      <Svg accessibilityLabel="가격 및 거래량 캔들 차트" pointerEvents="none" width="100%" height={priceHeight + volumeHeight} viewBox={`0 0 ${chartWidth} ${priceHeight + volumeHeight}`}>
         {[0, 1, 2, 3].map((line) => {
           const y = chartPadding + line * ((priceHeight - chartPadding * 2) / 3);
           return <Line key={line} x1={0} x2={chartWidth} y1={y} y2={y} stroke="#E5E7EB" strokeWidth={1} />;
@@ -105,9 +128,35 @@ export function CandlestickChart({
               opacity={0.55}
             />
           ))}
+        {!!selectedCandle && <Line x1={model.slot * (selectedIndex + 0.5)} x2={model.slot * (selectedIndex + 0.5)} y1={0} y2={priceHeight + volumeHeight} stroke="#172026" strokeWidth={1} strokeDasharray="3 3" />}
       </Svg>
+      <Pressable accessibilityRole="button" accessibilityLabel="차트 캔들 선택"
+        onPress={event => {
+          const pointer = event.nativeEvent as typeof event.nativeEvent & { offsetX?: number };
+          const index = Math.floor((pointer.locationX ?? pointer.offsetX ?? 0) / model.slot);
+          if (Number.isFinite(index)) setSelected(Math.max(0, Math.min(count - 1, index)));
+        }}
+        style={StyleSheet.absoluteFill} />
+      </View>
+      {selectedCandle && <View style={styles.details} accessibilityLiveRegion="polite">
+        <ChartTool name="chevron-back" label="이전 캔들 상세" disabled={selectedIndex === 0} onPress={() => setSelected(selectedIndex - 1)} />
+        <ChartTool name="chevron-forward" label="다음 캔들 상세" disabled={selectedIndex >= count - 1} onPress={() => setSelected(selectedIndex + 1)} />
+        <Text style={styles.detailText}>{selectedCandle.time}</Text>
+        <Text style={styles.detailText}>시가 {formatCurrency(selectedCandle.open, currency)}</Text>
+        <Text style={styles.detailText}>고가 {formatCurrency(selectedCandle.high, currency)}</Text>
+        <Text style={styles.detailText}>저가 {formatCurrency(selectedCandle.low, currency)}</Text>
+        <Text style={styles.detailText}>종가 {formatCurrency(selectedCandle.close, currency)}</Text>
+        <Text style={styles.detailText}>거래량 {selectedCandle.volume.toLocaleString('ko-KR')}</Text>
+      </View>}
     </View>
   );
+}
+
+function ChartTool({ name, label, disabled, onPress }: { name: React.ComponentProps<typeof Ionicons>['name']; label: string; disabled: boolean; onPress: () => void }) {
+  return <Pressable accessibilityRole="button" accessibilityLabel={label} disabled={disabled} onPress={onPress}
+    {...{ title: label }} style={{ width: 40, height: 40, alignItems: 'center', justifyContent: 'center', opacity: disabled ? 0.3 : 1 }}>
+    <Ionicons name={name} size={20} color="#172026" />
+  </Pressable>;
 }
 
 function LegendDot({ color, label }: { color: string; label: string }) {
@@ -119,70 +168,11 @@ function LegendDot({ color, label }: { color: string; label: string }) {
   );
 }
 
-function buildChartModel(
-  candles: Candle[],
-  ma5: number[],
-  ma20: number[],
-  ema20: number[],
-  bollinger20: BollingerBandPoint[],
-) {
-  const highs = candles.map((candle) => candle.high);
-  const lows = candles.map((candle) => candle.low);
-  const bandHighs = bollinger20.map((band) => band.upper);
-  const bandLows = bollinger20.map((band) => band.lower);
-  const volumes = candles.map((candle) => candle.volume);
-  const maxPrice = Math.max(...highs, ...bandHighs);
-  const minPrice = Math.min(...lows, ...bandLows);
-  const maxVolume = Math.max(...volumes);
-  const priceRange = Math.max(1, maxPrice - minPrice);
-  const slot = chartWidth / candles.length;
-  const bodyWidth = Math.max(4, Math.min(11, slot * 0.56));
-
-  const yForPrice = (price: number) =>
-    chartPadding + ((maxPrice - price) / priceRange) * (priceHeight - chartPadding * 2);
-  const xForIndex = (index: number) => slot * index + slot / 2;
-
-  return {
-    candles: candles.map((candle, index) => {
-      const openY = yForPrice(candle.open);
-      const closeY = yForPrice(candle.close);
-      const rising = candle.close >= candle.open;
-      return {
-        index,
-        x: xForIndex(index),
-        highY: yForPrice(candle.high),
-        lowY: yForPrice(candle.low),
-        bodyTop: Math.min(openY, closeY),
-        bodyHeight: Math.abs(openY - closeY),
-        bodyWidth,
-        color: rising ? '#0F9F6E' : '#E11D48',
-      };
-    }),
-    ma5Points: ma5.map((price, index) => `${xForIndex(index)},${yForPrice(price)}`).join(' '),
-    ma20Points: ma20.map((price, index) => `${xForIndex(index)},${yForPrice(price)}`).join(' '),
-    ema20Points: ema20.map((price, index) => `${xForIndex(index)},${yForPrice(price)}`).join(' '),
-    bbUpperPoints: bollinger20.map((band, index) => `${xForIndex(index)},${yForPrice(band.upper)}`).join(' '),
-    bbLowerPoints: bollinger20.map((band, index) => `${xForIndex(index)},${yForPrice(band.lower)}`).join(' '),
-    priceLabels: [maxPrice, minPrice + priceRange / 2, minPrice].map((value) => ({
-      value,
-      y: yForPrice(value),
-    })),
-    volumes: candles.map((candle, index) => {
-      const height = Math.max(3, (candle.volume / maxVolume) * (volumeHeight - 8));
-      const rising = candle.close >= candle.open;
-      return {
-        index,
-        x: xForIndex(index),
-        y: priceHeight + volumeHeight - height,
-        width: Math.max(3, bodyWidth),
-        height,
-        color: rising ? '#0F9F6E' : '#E11D48',
-      };
-    }),
-  };
-}
 
 const styles = StyleSheet.create({
+  toolbar: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 2 },
+  details: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, padding: 8, minHeight: 48 },
+  detailText: { color: '#344054', fontSize: 12 },
   panel: {
     backgroundColor: '#FFFFFF',
     borderColor: '#E5E7EB',

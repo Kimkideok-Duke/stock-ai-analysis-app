@@ -59,6 +59,10 @@ export type BollingerBandPoint = {
 };
 
 export function analyzeSeries(candles: Candle[]) {
+  if (!candles.length || candles.some(candle => ![candle.open, candle.high, candle.low, candle.close, candle.volume].every(Number.isFinite)
+    || candle.low <= 0 || candle.low > Math.min(candle.open, candle.close) || candle.high < Math.max(candle.open, candle.close) || candle.volume < 0)) {
+    throw new Error('유효한 OHLCV 데이터가 필요합니다.');
+  }
   const closes = candles.map((candle) => candle.close);
   const volumes = candles.map((candle) => candle.volume);
   const latestClose = closes[closes.length - 1] ?? 0;
@@ -233,11 +237,11 @@ function buildStrategyPlan(
   const direction =
     trendScore >= 2 ? '상승 우위' : trendScore <= -1 ? '하락 주의' : '중립';
   const confidence = Math.min(82, Math.max(48, 58 + trendScore * 8));
-  const pullbackUnit = Math.max(averageRange, currentPrice * 0.012);
+  const pullbackUnit = Math.min(currentPrice * 0.25, Math.max(averageRange, currentPrice * 0.012));
   const aggressive = currentPrice - pullbackUnit * 0.35;
-  const balanced = Math.max(swingLow, currentPrice - pullbackUnit * 0.85);
-  const defensive = Math.max(swingLow * 0.995, currentPrice - pullbackUnit * 1.45);
-  const stopLoss = Math.min(defensive - pullbackUnit * 0.75, swingLow - pullbackUnit * 0.35);
+  const balanced = Math.min(aggressive, Math.max(swingLow, currentPrice - pullbackUnit * 0.85));
+  const defensive = Math.min(balanced, Math.max(swingLow * 0.995, currentPrice - pullbackUnit * 1.45));
+  const stopLoss = Math.max(currentPrice * 0.001, Math.min(defensive - pullbackUnit * 0.75, swingLow - pullbackUnit * 0.35));
   const targetUnit = Math.max(swingHigh - currentPrice, pullbackUnit * 1.8);
   const firstTarget = currentPrice + targetUnit * 0.55;
   const secondTarget = Math.max(swingHigh, currentPrice + targetUnit);
@@ -307,6 +311,7 @@ function calculateRsi(values: number[], period: number) {
 
   const averageGain = gains / period;
   const averageLoss = losses / period;
+  if (averageGain === 0 && averageLoss === 0) return 50;
   if (averageLoss === 0) {
     return 100;
   }

@@ -2,6 +2,15 @@ const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const { generate, analyze, publicError } = require('./aiProviders');
 
+test('client cancellation propagates to the upstream request', async () => {
+  const controller = new AbortController();
+  const result = generate({ provider: 'gemini', model: 'test' }, 'test', 'JSON', async (_url, options) => {
+    await new Promise((_resolve, reject) => options.signal.addEventListener('abort', () => reject(new DOMException('aborted', 'AbortError')), { once: true }));
+  }, controller.signal);
+  controller.abort();
+  await assert.rejects(() => result, { name: 'AbortError' });
+});
+
 for (const provider of ['gemini', 'openai', 'anthropic']) {
   test(`${provider}: uses the selected user's key and parses response`, async () => {
     const fakeKey = 'test-only-credential';
